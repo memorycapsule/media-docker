@@ -1,0 +1,108 @@
+version: "3"
+services:
+  vpn:
+    image: qmcgaw/gluetun
+    container_name: vpn
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8888:8888/tcp # HTTP proxy
+      - 8090:8090 # qbittorrent Web UI
+      - 6881:6881 # qbittorrent
+      - 6881:6881/udp # qbittorrent
+      - 8889:8889/tcp # Gluetun
+      - 9696:9696 # prowlarr
+      - 9117:9117 # jackett
+      - 8989:8989 # sonarr
+      - 7878:7878 # radarr
+    volumes:
+      - /volume1/docker/gluetun:/gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=surfshark
+      - OPENVPN_USER=
+      - OPENVPN_PASSWORD=
+      - SERVER_COUNTRIES=United Kingdom
+      # Timezone for accurate log times
+      - TZ=Europe/London
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - UMASK=022
+      - WEBUI_PORT=8090
+    volumes:
+    network_mode: service:vpn
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: curl google.com || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  jackett:
+    image: linuxserver/jackett:latest
+    container_name: vpn-jackett
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - C:/Users/after/compose/qbittorrent/config:/config
+    network_mode: service:vpn
+    labels:
+      - autoheal=true
+      - com.centurylinklabs.watchtower.depends-on=vpn
+    healthcheck:
+      test: curl google.com || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    
+  sonarr:
+    image: linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - jackett
+      - qbittorrent
+
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+    restart: unless-stopped
+    network_mode: service:vpn
+    depends_on:
+      - jackett
+      - qbittorrent
+
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /path/to/appdata/config:/config
+    ports:
+      - 5055:5055
+    restart: unless-stopped

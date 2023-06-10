@@ -1,0 +1,1 @@
+Handy docker-compose for containerizing sonarr, radarr, jackett, overseerr & qbit behind a vpn. 
